@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <h1>RAG MVP</h1>
+    <p>문서 업로드 화면</p>
+
+    <form action="/upload" method="post" enctype="multipart/form-data">
+        <input type="file" name="file" accept=".txt" required />
+        <button type="submit">업로드</button>
+    </form>    
+
+    <h2>업로드된 파일</h2>
+    <ul>
+        {% for name in files %}
+        <li>{{ name }}</li>
+        {% else %}
+        <li>(없음)</li>
+        {% endfor %}
+    </ul>
+</body>
+</html>
