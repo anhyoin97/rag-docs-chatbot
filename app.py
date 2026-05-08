@@ -36,5 +36,11 @@ def upload_file():
     return redirect(url_for("home"))
 
 
+@app.get("/index")
+def index_docs():
+    """업로드 문서를 벡터 인덱스로 만드는 단계."""
+    return render_template("indexing.html")
+
+
 if __name__ == "__main__":
     app.run(debug=True)
