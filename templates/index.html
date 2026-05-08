@@ -8,6 +8,11 @@
 <body>
     <h1>RAG MVP</h1>
     <p>문서 업로드 화면</p>
+    {% if has_api_key %}
+    <p>OpenAI API 키 상태: 설정됨</p>
+    {% else %}
+    <p>OpenAI API 키 상태: 없음 (.env 확인 필요)</p>
+    {% endif %}
 
     <form action="/upload" method="post" enctype="multipart/form-data">
         <input type="file" name="file" accept=".txt" required />

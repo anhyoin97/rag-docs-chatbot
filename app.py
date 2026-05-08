@@ -1,6 +1,10 @@
 from pathlib import Path
+import os
 
+from dotenv import load_dotenv
 from flask import Flask, render_template, redirect, request, url_for
+
+load_dotenv()
 
 app = Flask(__name__) # Flask 애플리케이션(서버) 객체 생성 
 
@@ -16,7 +20,8 @@ UPLOAD_DIR.mkdir(exist_ok=True)
 @app.get("/") # / 경로로 GET 요청이 오면 아래 함수 실행 (라우팅)
 def home():
     files = sorted([p.name for p in UPLOAD_DIR.glob("*.txt")])
-    return render_template("index.html", files=files)
+    has_api_key = bool(os.getenv("OPENAI_API_KEY"))
+    return render_template("index.html", files=files, has_api_key=has_api_key)
 
 @app.post("/upload")
 def upload_file():
