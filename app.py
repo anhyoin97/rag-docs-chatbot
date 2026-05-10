@@ -1,6 +1,6 @@
 from pathlib import Path
 import os
-
+import uuid # 고유한 파일 이름 생성을 위함
 from dotenv import load_dotenv
 from flask import Flask, render_template, redirect, request, url_for
 
@@ -16,6 +16,25 @@ BASE_DIR = Path(__file__).resolve().parent   # 프로젝트의 루트 폴더
 UPLOAD_DIR = BASE_DIR / "uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)
 
+def chunk_text(text: str, max_chars: int = 800, overlap: int = 100) -> list[str]:
+    """문자 수 기준으로 청크를 나눈다. MVP용 단순 슬라이딩 윈도우."""
+    text = text.strip()
+    if not text:
+        return []
+    chunks: list[str] = []
+    start = 0
+    n = len(text)
+    while start < n:
+        end = min(start + max_chars, n)
+        piece = text[start:end].strip()
+        if piece:
+            chunks.append(piece)
+        if end >= n:
+            break
+        start = end - overlap
+        if start < 0:
+            start = 0
+    return chunks
 
 @app.get("/") # / 경로로 GET 요청이 오면 아래 함수 실행 (라우팅)
 def home():
@@ -38,8 +57,21 @@ def upload_file():
 
 @app.get("/index")
 def index_docs():
-    """업로드 문서를 벡터 인덱스로 만드는 단계."""
-    return render_template("indexing.html")
+    """업로드 문서를 읽어 청크 개수만 집계한다. (다음 단계: 임베딩 + Chroma)"""
+    stats = []
+    total_chunks = 0
+    for path in sorted(UPLOAD_DIR.glob("*.txt")):
+        text = path.read_text(encoding="utf-8")
+        chunks = chunk_text(text)
+        n = len(chunks)
+        total_chunks += n
+        stats.append({"filename": path.name, "chunks": n})
+    return render_template(
+        "indexing.html",
+        stats=stats,
+        total_chunks=total_chunks,
+        file_count=len(stats),
+    )
 
 
 if __name__ == "__main__":

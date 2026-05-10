@@ -1,13 +1,17 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>문서 인덱싱</title>
-</head>
 <body>
     <h1>문서 인덱싱</h1>
-    <p>인덱싱 준비 중</p>
+    <p>청크 집계만 수행.</p>
+
+    <p>파일 수: {{ file_count }} | 전체 청크 수: {{ total_chunks }}</p>
+
+    <h2>파일별 청크 수</h2>
+    <ul>
+        {% for row in stats %}
+        <li>{{ row.filename }} — {{ row.chunks }}개</li>
+        {% else %}
+        <li>(uploads에 .txt 없음)</li>
+        {% endfor %}
+    </ul>
+
     <p><a href="{{ url_for('home') }}">홈으로</a></p>
 </body>
-</html>
