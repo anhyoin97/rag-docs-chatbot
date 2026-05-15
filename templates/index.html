@@ -22,10 +22,26 @@
     <p><a href="/index">문서 인덱싱 페이지로 이동</a></p>
     <p><a href="{{ url_for('ask') }}">질문하기 (RAG)</a></p>
 
+    {% with messages = get_flashed_messages() %}
+    {% if messages %}
+    <ul>
+        {% for msg in messages %}
+        <li>{{ msg }}</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+    {% endwith %}
+
     <h2>업로드된 파일</h2>
     <ul>
         {% for name in files %}
-        <li>{{ name }}</li>
+        <li>
+            {{ name }}
+            <form action="{{ url_for('delete_file') }}" method="post" style="display: inline;">
+                <input type="hidden" name="filename" value="{{ name }}" />
+                <button type="submit" onclick="return confirm('{{ name }} 을(를) 삭제할까요?');">삭제</button>
+            </form>
+        </li>
         {% else %}
         <li>(없음)</li>
         {% endfor %}

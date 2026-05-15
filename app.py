@@ -3,7 +3,7 @@ import os
 import uuid
 
 from dotenv import load_dotenv
-from flask import Flask, render_template, redirect, request, url_for
+from flask import Flask, flash, redirect, render_template, request, url_for
 import chromadb # 로컬에 DB 폴더를 두고 벡터 저장
 from openai import OpenAI # OpenAI API 호출
 
@@ -18,6 +18,7 @@ QUESTION_MAX_LEN = 2000
 CHROMA_DIR.mkdir(exist_ok=True)
 
 app = Flask(__name__)  # Flask 애플리케이션(서버) 객체 생성
+app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev-secret-key")
 
 chroma_client = chromadb.PersistentClient(path=str(CHROMA_DIR))
 chroma_collection = chroma_client.get_or_create_collection(
@@ -54,6 +55,74 @@ def chunk_text(text: str, max_chars: int = 800, overlap: int = 100) -> list[str]
             start = 0
     return chunks
 
+
+def collect_upload_stats() -> tuple[list[dict], list[dict], int, int]:
+    """uploads/*.txt 청크 집계. (stats, records, total_chunks, file_count)"""
+    stats: list[dict] = []
+    records: list[dict] = []
+    for path in sorted(UPLOAD_DIR.glob("*.txt")):
+        text = path.read_text(encoding="utf-8")
+        chunks = chunk_text(text)
+        stats.append({"filename": path.name, "chunks": len(chunks)})
+        for i, chunk in enumerate(chunks):
+            records.append(
+                {"source": path.name, "chunk_index": i, "text": chunk}
+            )
+    return stats, records, len(records), len(stats)
+
+
+def run_reindex(records: list[dict]) -> tuple[bool, str | None, int]:
+    """전체 재인덱싱. (indexed, error_message, vectors_in_db)"""
+    if not os.getenv("OPENAI_API_KEY"):
+        return False, "OPENAI_API_KEY가 없습니다. .env를 확인하세요.", chroma_collection.count()
+
+    try:
+        existing = chroma_collection.get()
+        if existing and existing.get("ids"):
+            chroma_collection.delete(ids=existing["ids"])
+
+        if not records:
+            return True, None, chroma_collection.count()
+
+        client = OpenAI()
+        all_embeddings: list[list[float]] = []
+        texts = [r["text"] for r in records]
+
+        for start in range(0, len(texts), EMBEDDING_BATCH_SIZE):
+            batch = texts[start : start + EMBEDDING_BATCH_SIZE]
+            resp = client.embeddings.create(model=EMBEDDING_MODEL, input=batch)
+            ordered = sorted(resp.data, key=lambda d: d.index)
+            all_embeddings.extend(d.embedding for d in ordered)
+
+        ids = [str(uuid.uuid4()) for _ in records]
+        metadatas = [
+            {"source": r["source"], "chunk_index": r["chunk_index"]} for r in records
+        ]
+        chroma_collection.add(
+            ids=ids,
+            embeddings=all_embeddings,
+            documents=texts,
+            metadatas=metadatas,
+        )
+        return True, None, chroma_collection.count()
+    except Exception as exc:  # noqa: BLE001
+        return False, str(exc), chroma_collection.count()
+
+
+def indexing_page(indexed: bool = False, error_message: str | None = None):
+    stats, _, total_chunks, file_count = collect_upload_stats()
+    return render_template(
+        "indexing.html",
+        stats=stats,
+        total_chunks=total_chunks,
+        file_count=file_count,
+        vectors_in_db=chroma_collection.count(),
+        indexed=indexed,
+        error_message=error_message,
+        has_api_key=bool(os.getenv("OPENAI_API_KEY")),
+    )
+
+
 @app.get("/") # / 경로로 GET 요청이 오면 아래 함수 실행 (라우팅)
 def home():
     files = sorted([p.name for p in UPLOAD_DIR.glob("*.txt")])
@@ -70,87 +139,46 @@ def upload_file():
         return redirect(url_for("home"))
     save_path = UPLOAD_DIR / safe_name
     file.save(save_path)
+    flash(f"'{safe_name}' 업로드됨. 인덱싱 페이지에서 재인덱싱하세요.")
+    return redirect(url_for("home"))
+
+
+@app.post("/delete")
+def delete_file():
+    """업로드 파일 삭제 + Chroma에서 해당 source 벡터 제거."""
+    raw = request.form.get("filename") or ""
+    safe_name = Path(raw).name
+    if not safe_name.lower().endswith(".txt"):
+        flash("삭제할 수 없는 파일입니다.")
+        return redirect(url_for("home"))
+
+    target = UPLOAD_DIR / safe_name
+    if not target.is_file():
+        flash(f"'{safe_name}' 파일이 없습니다.")
+        return redirect(url_for("home"))
+
+    target.unlink()
+    try:
+        chroma_collection.delete(where={"source": safe_name})
+    except Exception:
+        pass  # 인덱스에 없거나 이미 비어 있음
+
+    flash(f"'{safe_name}' 삭제됨. 남은 문서로 질문하려면 재인덱싱하세요.")
     return redirect(url_for("home"))
 
 
 @app.get("/index")
-def index_docs():
-    """uploads의 .txt를 청크 → OpenAI 임베딩 → Chroma에 저장(전체 재인덱싱)."""
-    stats: list[dict] = []
-    records: list[dict] = []
+def index_page():
+    """청크 집계만 표시 (API 호출 없음)."""
+    return indexing_page()
 
-    for path in sorted(UPLOAD_DIR.glob("*.txt")):
-        text = path.read_text(encoding="utf-8")
-        chunks = chunk_text(text)
-        stats.append({"filename": path.name, "chunks": len(chunks)})
-        for i, chunk in enumerate(chunks):
-            records.append(
-                {
-                    "source": path.name,
-                    "chunk_index": i,
-                    "text": chunk,
-                }
-            )
 
-    total_chunks = len(records)
-    file_count = len(stats)
-    vectors_in_db = chroma_collection.count()
-    indexed = False
-    error_message: str | None = None
-
-    def render():
-        return render_template(
-            "indexing.html",
-            stats=stats,
-            total_chunks=total_chunks,
-            file_count=file_count,
-            vectors_in_db=vectors_in_db,
-            indexed=indexed,
-            error_message=error_message,
-        )
-
-    if not os.getenv("OPENAI_API_KEY"):
-        error_message = "OPENAI_API_KEY가 없습니다. .env를 확인하세요."
-        return render()
-
-    try:
-        existing = chroma_collection.get()
-        if existing and existing.get("ids"):
-            chroma_collection.delete(ids=existing["ids"])
-
-        if total_chunks == 0:
-            vectors_in_db = chroma_collection.count()
-            indexed = True
-            return render()
-
-        client = OpenAI()
-        all_embeddings: list[list[float]] = []
-
-        texts = [r["text"] for r in records]
-        for start in range(0, len(texts), EMBEDDING_BATCH_SIZE):
-            batch = texts[start : start + EMBEDDING_BATCH_SIZE]
-            resp = client.embeddings.create(model=EMBEDDING_MODEL, input=batch)
-            ordered = sorted(resp.data, key=lambda d: d.index)
-            all_embeddings.extend(d.embedding for d in ordered)
-
-        ids = [str(uuid.uuid4()) for _ in records]
-        metadatas = [
-            {"source": r["source"], "chunk_index": r["chunk_index"]} for r in records
-        ]
-
-        chroma_collection.add(
-            ids=ids,
-            embeddings=all_embeddings,
-            documents=texts,
-            metadatas=metadatas,
-        )
-        indexed = True
-        vectors_in_db = chroma_collection.count()
-    except Exception as exc:  # noqa: BLE001 — MVP: 사용자에게 원인 표시
-        error_message = str(exc)
-        vectors_in_db = chroma_collection.count()
-
-    return render()
+@app.post("/index")
+def index_run():
+    """버튼으로 전체 재인덱싱 실행."""
+    _, records, _, _ = collect_upload_stats()
+    indexed, error_message, _ = run_reindex(records)
+    return indexing_page(indexed=indexed, error_message=error_message)
 
 
 @app.route("/ask", methods=["GET", "POST"])

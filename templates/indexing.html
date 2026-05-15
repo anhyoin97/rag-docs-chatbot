@@ -7,7 +7,14 @@
 </head>
 <body>
     <h1>문서 인덱싱</h1>
-    <p>uploads의 .txt를 청크로 나눈 뒤 OpenAI 임베딩을 만들고 Chroma에 저장합니다. (매 요청마다 전체 재인덱싱)</p>
+    <p>아래에서 청크 수를 확인한 뒤, <strong>인덱싱 실행</strong> 버튼을 눌러야 Chroma에 저장됩니다.</p>
+
+    <form action="{{ url_for('index_run') }}" method="post">
+        <button type="submit" {% if not has_api_key %}disabled{% endif %}>인덱싱 실행 (전체 재인덱싱)</button>
+    </form>
+    {% if not has_api_key %}
+    <p style="color: orange;">API 키가 없어 인덱싱할 수 없습니다.</p>
+    {% endif %}
 
     {% if error_message %}
     <p style="color: red;">오류: {{ error_message }}</p>
