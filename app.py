@@ -14,6 +14,8 @@ EMBEDDING_MODEL = "text-embedding-3-small"
 EMBEDDING_BATCH_SIZE = 64
 CHAT_MODEL = "gpt-4o-mini"
 RETRIEVAL_TOP_K = 5
+# 코사인 거리: 작을수록 유사. 이 값보다 크면 LLM 컨텍스트에서 제외.
+MAX_RETRIEVAL_DISTANCE = 0.75
 QUESTION_MAX_LEN = 2000
 CHROMA_DIR.mkdir(exist_ok=True)
 
@@ -264,6 +266,8 @@ def ask():
         for i, doc in enumerate(docs):
             meta = metas[i] if i < len(metas) else {}
             dist = dists[i] if i < len(dists) else None
+            if dist is not None and dist > MAX_RETRIEVAL_DISTANCE:
+                continue
             src = (meta or {}).get("source", "?")
             chunk_idx = (meta or {}).get("chunk_index", "?")
             excerpt = (doc or "")[:1200]
@@ -275,6 +279,20 @@ def ask():
                     "distance": dist,
                     "excerpt": excerpt,
                 }
+            )
+
+        if not context_parts:
+            return render_template(
+                "ask.html",
+                has_api_key=True,
+                vector_count=vector_count,
+                question=question,
+                answer=(
+                    "업로드된 문서에서 질문과 관련된 내용을 찾지 못했습니다. "
+                    "다른 표현으로 질문하거나, 문서를 추가한 뒤 재인덱싱해 보세요."
+                ),
+                sources=[],
+                error_message=None,
             )
 
         context = "\n\n---\n\n".join(context_parts)

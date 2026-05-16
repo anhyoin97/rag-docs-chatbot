@@ -19,7 +19,7 @@
         <button type="submit">업로드</button>
     </form>
 
-    <p><a href="/index">문서 인덱싱 페이지로 이동</a></p>
+    <p><a href="{{ url_for('index_page') }}">문서 인덱싱 페이지로 이동</a></p>
     <p><a href="{{ url_for('ask') }}">질문하기 (RAG)</a></p>
 
     {% with messages = get_flashed_messages() %}
