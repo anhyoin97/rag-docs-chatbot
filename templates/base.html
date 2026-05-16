@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}RAG Docs Chatbot{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <header class="site-header">
+        <div class="header-inner">
+            <a class="brand" href="{{ url_for('home') }}">RAG <span>Docs</span></a>
+            <nav class="nav">
+                <a href="{{ url_for('home') }}" class="{% if request.endpoint == 'home' %}active{% endif %}">업로드</a>
+                <a href="{{ url_for('index_page') }}" class="{% if request.endpoint in ('index_page', 'index_run') %}active{% endif %}">인덱싱</a>
+                <a href="{{ url_for('ask') }}" class="{% if request.endpoint == 'ask' %}active{% endif %}">질문하기</a>
+            </nav>
+        </div>
+    </header>
+
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+</body>
+</html>

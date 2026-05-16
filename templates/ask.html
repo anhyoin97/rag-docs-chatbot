@@ -1,53 +1,54 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>질문하기</title>
-</head>
-<body>
-    <h1>문서 기반 질문</h1>
-    <p>인덱싱된 문서를 검색한 뒤, 그 내용만 근거로 답합니다.</p>
+{% extends "base.html" %}
+{% block title %}질문하기 · RAG Docs{% endblock %}
 
-    {% if not has_api_key %}
-    <p style="color: red;">OPENAI_API_KEY가 없습니다. .env를 설정하세요.</p>
-    {% elif vector_count == 0 %}
-    <p style="color: orange;">Chroma에 벡터가 없습니다. 먼저 <a href="{{ url_for('index_page') }}">인덱싱</a>을 실행하세요.</p>
-    {% endif %}
+{% block content %}
+<h1 class="page-title">문서 기반 질문</h1>
+<p class="page-desc">인덱싱된 문서를 검색한 뒤, 출처와 함께 답변합니다. (벡터 {{ vector_count }}개)</p>
 
-    {% if error_message %}
-    <p style="color: red;">{{ error_message }}</p>
-    {% endif %}
+{% if not has_api_key %}
+<div class="alert alert-danger">OPENAI_API_KEY가 없습니다. .env를 설정하세요.</div>
+{% elif vector_count == 0 %}
+<div class="alert alert-warn">
+    Chroma에 벡터가 없습니다. 먼저 <a href="{{ url_for('index_page') }}">인덱싱</a>을 실행하세요.
+</div>
+{% endif %}
 
+{% if error_message %}
+<div class="alert alert-danger">{{ error_message }}</div>
+{% endif %}
+
+<div class="card">
+    <h2>질문 입력</h2>
     <form action="{{ url_for('ask') }}" method="post">
-        <label for="question">질문</label><br />
-        <textarea id="question" name="question" rows="4" cols="60" required>{{ question or "" }}</textarea><br />
-        <button type="submit" {% if not has_api_key or vector_count == 0 %}disabled{% endif %}>답변 받기</button>
+        <div class="form-row">
+            <label for="question">질문</label>
+            <textarea id="question" name="question" placeholder="예: 재택 근무는 주 몇 회까지 가능해?" required>{{ question or "" }}</textarea>
+        </div>
+        <button type="submit" class="btn btn-primary" {% if not has_api_key or vector_count == 0 %}disabled{% endif %}>
+            답변 받기
+        </button>
     </form>
+</div>
 
-    {% if answer %}
+{% if answer %}
+<div class="card">
     <h2>답변</h2>
-    <pre style="white-space: pre-wrap; font-family: inherit;">{{ answer }}</pre>
-    {% endif %}
+    <div class="answer-box">{{ answer }}</div>
+</div>
+{% endif %}
 
-    {% if sources %}
+{% if sources %}
+<div class="card">
     <h2>출처 (검색된 청크)</h2>
-    <ol>
-        {% for s in sources %}
-        <li>
-            <strong>{{ s.source }}</strong> — chunk {{ s.chunk_index }}
-            {% if s.distance is not none %} (거리: {{ '%.4f' % s.distance }}){% endif %}
-            <blockquote style="margin: 0.5em 0; padding-left: 1em; border-left: 3px solid #ccc;">
-                {{ s.excerpt }}
-            </blockquote>
-        </li>
-        {% endfor %}
-    </ol>
-    {% endif %}
-
-    <p>
-        <a href="{{ url_for('home') }}">홈</a>
-        · <a href="{{ url_for('index_page') }}">인덱싱</a>
-    </p>
-</body>
-</html>
+    {% for s in sources %}
+    <article class="source-card">
+        <div class="source-meta">
+            {{ s.source }} — chunk {{ s.chunk_index }}
+            {% if s.distance is not none %} · 거리 {{ '%.4f' % s.distance }}{% endif %}
+        </div>
+        <p class="source-excerpt">{{ s.excerpt }}</p>
+    </article>
+    {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

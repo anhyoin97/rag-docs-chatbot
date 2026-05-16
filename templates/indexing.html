@@ -1,45 +1,56 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>문서 인덱싱</title>
-</head>
-<body>
-    <h1>문서 인덱싱</h1>
-    <p>아래에서 청크 수를 확인한 뒤, <strong>인덱싱 실행</strong> 버튼을 눌러야 Chroma에 저장됩니다.</p>
+{% extends "base.html" %}
+{% block title %}인덱싱 · RAG Docs{% endblock %}
 
+{% block content %}
+<h1 class="page-title">문서 인덱싱</h1>
+<p class="page-desc">청크 수를 확인한 뒤 버튼을 눌러 Chroma에 벡터를 저장하세요.</p>
+
+{% if error_message %}
+<div class="alert alert-danger">오류: {{ error_message }}</div>
+{% elif indexed %}
+    {% if total_chunks == 0 %}
+    <div class="alert alert-warn">저장할 청크가 없습니다. 기존 인덱스는 비웠습니다. (Chroma 벡터 {{ vectors_in_db }}개)</div>
+    {% else %}
+    <div class="alert alert-success">인덱싱 완료. Chroma에 벡터 {{ vectors_in_db }}개 저장됨.</div>
+    {% endif %}
+{% endif %}
+
+<div class="card">
+    <h2>인덱싱 실행</h2>
+    <p style="margin-top:0;color:var(--muted);font-size:0.9rem;">매 실행 시 전체 문서를 다시 임베딩합니다.</p>
     <form action="{{ url_for('index_run') }}" method="post">
-        <button type="submit" {% if not has_api_key %}disabled{% endif %}>인덱싱 실행 (전체 재인덱싱)</button>
+        <button type="submit" class="btn btn-primary" {% if not has_api_key %}disabled{% endif %}>
+            인덱싱 실행
+        </button>
     </form>
     {% if not has_api_key %}
-    <p style="color: orange;">API 키가 없어 인덱싱할 수 없습니다.</p>
+    <p class="alert alert-warn" style="margin-top:1rem;margin-bottom:0;">API 키가 없어 인덱싱할 수 없습니다.</p>
     {% endif %}
+</div>
 
-    {% if error_message %}
-    <p style="color: red;">오류: {{ error_message }}</p>
-    {% elif indexed %}
-        {% if total_chunks == 0 %}
-        <p>저장할 청크가 없습니다. 기존 인덱스는 비웠습니다. (Chroma 벡터 {{ vectors_in_db }}개)</p>
-        {% else %}
-        <p style="color: green;">인덱싱 완료. Chroma에 벡터 {{ vectors_in_db }}개 저장됨.</p>
-        {% endif %}
-    {% endif %}
+<div class="stats-row">
+    <div class="stat">
+        <div class="stat-label">파일 수</div>
+        <div class="stat-value">{{ file_count }}</div>
+    </div>
+    <div class="stat">
+        <div class="stat-label">전체 청크</div>
+        <div class="stat-value">{{ total_chunks }}</div>
+    </div>
+    <div class="stat">
+        <div class="stat-label">Chroma 벡터</div>
+        <div class="stat-value">{{ vectors_in_db }}</div>
+    </div>
+</div>
 
-    <p>파일 수: {{ file_count }} | 전체 청크 수: {{ total_chunks }} | 현재 Chroma 벡터 수: {{ vectors_in_db }}</p>
-
+<div class="card">
     <h2>파일별 청크 수</h2>
-    <ul>
+    <ul class="chunk-list">
         {% for row in stats %}
-        <li>{{ row.filename }} — {{ row.chunks }}개</li>
+        <li>{{ row.filename }} — <strong>{{ row.chunks }}</strong>개</li>
         {% else %}
-        <li>(uploads에 .txt 없음)</li>
+        <li class="empty">uploads에 .txt 없음</li>
         {% endfor %}
     </ul>
-
-    <p>
-        <a href="{{ url_for('home') }}">홈으로</a>
-        · <a href="{{ url_for('ask') }}">질문하기</a>
-    </p>
-</body>
-</html>
+</div>
+{% endblock %}
